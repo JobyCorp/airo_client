@@ -137,5 +137,29 @@ defmodule AiroClientTest do
       assert {:error, {:config, _}} = AiroClient.chat(%{"messages" => []}, api_key: "k")
       assert {:error, {:config, _}} = AiroClient.chat(%{"messages" => []}, base_url: "http://x")
     end
+
+    test "a trailing /v1 in base_url is tolerated (no /v1/v1)" do
+      test_pid = self()
+
+      Req.Test.stub(__MODULE__, fn conn ->
+        send(test_pid, {:path, conn.request_path})
+        Req.Test.json(conn, @completion)
+      end)
+
+      for base <- [
+            "http://airo.test",
+            "http://airo.test/",
+            "http://airo.test/v1",
+            "http://airo.test/v1/"
+          ] do
+        AiroClient.chat(%{"model" => "x", "messages" => []},
+          base_url: base,
+          api_key: "k",
+          req_options: [plug: {Req.Test, __MODULE__}]
+        )
+
+        assert_received {:path, "/v1/chat/completions"}
+      end
+    end
   end
 end

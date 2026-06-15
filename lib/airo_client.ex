@@ -11,12 +11,15 @@ defmodule AiroClient do
   ## Config
 
       config :airo_client,
-        base_url: "http://airo.internal:4000",   # private; server-to-server
+        base_url: "http://airo.internal:4000",   # the gateway HOST — no /v1
         api_key:  System.get_env("AIRO_CLIENT_KEY"),
         receive_timeout: 120_000                  # generous default for slow models
 
-  Any of `:base_url`, `:api_key`, `:receive_timeout` can be overridden per call
-  via opts.
+  `:base_url` is the gateway **host** — `airo_client` owns the full `/v1/...`
+  endpoint paths. A trailing `/v1` (e.g. from an `openai_ex` config) is tolerated
+  and stripped, so `"http://airo:4000"` and `"http://airo:4000/v1"` behave the
+  same. Any of `:base_url`, `:api_key`, `:receive_timeout` can be overridden per
+  call via opts.
 
   ## Capabilities
 
@@ -223,7 +226,7 @@ defmodule AiroClient do
          {:ok, api_key} <- fetch(opts, :api_key) do
       {:ok,
        %{
-         base_url: base_url,
+         base_url: normalize_base_url(base_url),
          api_key: api_key,
          receive_timeout:
            opts[:receive_timeout] ||
@@ -237,5 +240,12 @@ defmodule AiroClient do
       nil -> {:error, {:config, "airo_client #{inspect(key)} is not configured"}}
       value -> {:ok, value}
     end
+  end
+
+  # airo_client owns the /v1/... paths, so base_url is the gateway host. Tolerate
+  # a trailing slash and a trailing /v1 (the openai_ex convention) so configs
+  # carried over from openai_ex don't double up to /v1/v1/....
+  defp normalize_base_url(base_url) do
+    base_url |> String.trim_trailing("/") |> String.replace_suffix("/v1", "")
   end
 end
