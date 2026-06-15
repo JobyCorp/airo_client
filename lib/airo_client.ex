@@ -30,6 +30,10 @@ defmodule AiroClient do
       AiroClient.transcribe("/path/to/audio.wav", %{"model" => "whisper"})
       AiroClient.models()
       AiroClient.chat_stream(%{"model" => "chat", "messages" => [...]}, into: self())
+
+  For realtime voice, the consumer terminates the *browser* WebSocket itself and
+  relays the upstream leg to Airo via `AiroClient.Realtime` (still server-to-server
+  — the browser never reaches Airo directly).
   """
 
   alias AiroClient.Streaming
@@ -221,7 +225,10 @@ defmodule AiroClient do
       {:error,
        {:config, "audio must be a path, {bytes, filename}, or {bytes, filename, content_type}"}}
 
-  defp config(opts) do
+  @doc false
+  # Resolve `{base_url, api_key, receive_timeout}` from opts / app env. Public so
+  # `AiroClient.Realtime` can reuse the same resolution + base_url normalization.
+  def config(opts) do
     with {:ok, base_url} <- fetch(opts, :base_url),
          {:ok, api_key} <- fetch(opts, :api_key) do
       {:ok,
