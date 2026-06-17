@@ -26,9 +26,11 @@ defmodule AiroClient do
       AiroClient.chat(%{"model" => "chat-deep", "messages" => [...]})
       AiroClient.embeddings(%{"model" => "embed-fast", "input" => "hello"})
       AiroClient.rerank(%{"model" => "rerank", "query" => "q", "documents" => [...]})
+      AiroClient.classify(%{"model" => "classify", "input" => ["text"]})
       AiroClient.speech(%{"model" => "tts", "input" => "hi", "voice" => "af_heart"})
       AiroClient.transcribe("/path/to/audio.wav", %{"model" => "whisper"})
-      AiroClient.models()
+      AiroClient.models()          # ["chat-deep", "rerank", ...]
+      AiroClient.model_catalog()   # [%{"id" => ..., "capabilities" => [...]}, ...]
       AiroClient.chat_stream(%{"model" => "chat", "messages" => [...]}, into: self())
 
   For realtime voice, the consumer terminates the *browser* WebSocket itself and
@@ -80,6 +82,11 @@ defmodule AiroClient do
   def rerank(params, opts \\ []) when is_map(params),
     do: json_post("/v1/rerank", params, opts)
 
+  @doc "Classify/score text (Infinity shape). `params` carries `model` + `input`."
+  @spec classify(params(), opts()) :: {:ok, map()} | {:error, error()}
+  def classify(params, opts \\ []) when is_map(params),
+    do: json_post("/v1/classify", params, opts)
+
   @doc "Text-to-speech. Returns `{:ok, {audio_binary, content_type}}`."
   @spec speech(params(), opts()) :: {:ok, {binary(), String.t()}} | {:error, error()}
   def speech(params, opts \\ []) when is_map(params) do
@@ -114,6 +121,22 @@ defmodule AiroClient do
       |> build_request(opts)
       |> Req.get(url: "/v1/models")
       |> handle_models()
+    end
+  end
+
+  @doc """
+  Full model catalog, key-scoped — each entry is the raw `/v1/models` object,
+  including the `"capabilities"` array, so a caller can discover which models
+  serve `chat`/`vision`/`embeddings`/`rerank`/`classify`/etc. Use `models/1`
+  when only the names are needed.
+  """
+  @spec model_catalog(opts()) :: {:ok, [map()]} | {:error, error()}
+  def model_catalog(opts \\ []) do
+    with {:ok, config} <- config(opts) do
+      config
+      |> build_request(opts)
+      |> Req.get(url: "/v1/models")
+      |> handle_model_catalog()
     end
   end
 
@@ -184,6 +207,15 @@ defmodule AiroClient do
 
   defp handle_models({:ok, %Req.Response{status: s, body: body}}), do: {:error, {:http, s, body}}
   defp handle_models({:error, reason}), do: {:error, {:transport, reason}}
+
+  defp handle_model_catalog({:ok, %Req.Response{status: s, body: %{"data" => data}}})
+       when s in 200..299,
+       do: {:ok, data}
+
+  defp handle_model_catalog({:ok, %Req.Response{status: s, body: body}}),
+    do: {:error, {:http, s, body}}
+
+  defp handle_model_catalog({:error, reason}), do: {:error, {:transport, reason}}
 
   defp content_type(headers) when is_map(headers) do
     case headers["content-type"] do

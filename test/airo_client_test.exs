@@ -81,6 +81,19 @@ defmodule AiroClientTest do
                )
     end
 
+    test "classify/2 posts to /v1/classify" do
+      Req.Test.stub(__MODULE__, fn conn ->
+        assert conn.request_path == "/v1/classify"
+        Req.Test.json(conn, %{"object" => "classify", "data" => [[%{"label" => "joy", "score" => 0.9}]]})
+      end)
+
+      assert {:ok, %{"object" => "classify"}} =
+               AiroClient.classify(
+                 %{"model" => "go-emotions", "input" => ["I am happy"]},
+                 opts(__MODULE__)
+               )
+    end
+
     test "speech/2 returns binary audio + content type" do
       Req.Test.stub(__MODULE__, fn conn ->
         conn
@@ -129,6 +142,23 @@ defmodule AiroClientTest do
       end)
 
       assert {:ok, ["chat", "qwen3.5-9b"]} = AiroClient.models(opts(__MODULE__))
+    end
+
+    test "model_catalog/1 returns full entries including capabilities" do
+      Req.Test.stub(__MODULE__, fn conn ->
+        assert conn.method == "GET" and conn.request_path == "/v1/models"
+
+        Req.Test.json(conn, %{
+          "object" => "list",
+          "data" => [
+            %{"id" => "chat", "capabilities" => ["chat", "vision"]},
+            %{"id" => "go-emotions", "capabilities" => ["classify"]}
+          ]
+        })
+      end)
+
+      assert {:ok, catalog} = AiroClient.model_catalog(opts(__MODULE__))
+      assert Enum.find(catalog, &(&1["id"] == "go-emotions"))["capabilities"] == ["classify"]
     end
   end
 
