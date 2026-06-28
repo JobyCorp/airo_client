@@ -29,6 +29,7 @@ defmodule AiroClient do
       AiroClient.classify(%{"model" => "classify", "input" => ["text"]})
       AiroClient.speech(%{"model" => "tts", "input" => "hi", "voice" => "af_heart"})
       AiroClient.transcribe("/path/to/audio.wav", %{"model" => "whisper"})
+      AiroClient.voices()          # [%{"id" => "af_heart", "model" => "tts", ...}, ...]
       AiroClient.models()          # ["chat-deep", "rerank", ...]
       AiroClient.model_catalog()   # [%{"id" => ..., "capabilities" => [...]}, ...]
       AiroClient.chat_stream(%{"model" => "chat", "messages" => [...]}, into: self())
@@ -136,7 +137,25 @@ defmodule AiroClient do
       config
       |> build_request(opts)
       |> Req.get(url: "/v1/models")
-      |> handle_model_catalog()
+      |> handle_data_list()
+    end
+  end
+
+  @doc """
+  TTS voices callable by the configured client key, aggregated live across speech
+  providers — each entry is the raw `/v1/audio/voices` object (`"id"`, `"model"`,
+  `"owned_by"`, plus provider-specific fields). Pass `:model` to restrict to a
+  single speech model (sent as the `?model=` query param).
+  """
+  @spec voices(opts()) :: {:ok, [map()]} | {:error, error()}
+  def voices(opts \\ []) do
+    with {:ok, config} <- config(opts) do
+      query = if model = opts[:model], do: [model: model], else: []
+
+      config
+      |> build_request(opts)
+      |> Req.get(url: "/v1/audio/voices", params: query)
+      |> handle_data_list()
     end
   end
 
@@ -208,14 +227,14 @@ defmodule AiroClient do
   defp handle_models({:ok, %Req.Response{status: s, body: body}}), do: {:error, {:http, s, body}}
   defp handle_models({:error, reason}), do: {:error, {:transport, reason}}
 
-  defp handle_model_catalog({:ok, %Req.Response{status: s, body: %{"data" => data}}})
+  defp handle_data_list({:ok, %Req.Response{status: s, body: %{"data" => data}}})
        when s in 200..299,
        do: {:ok, data}
 
-  defp handle_model_catalog({:ok, %Req.Response{status: s, body: body}}),
+  defp handle_data_list({:ok, %Req.Response{status: s, body: body}}),
     do: {:error, {:http, s, body}}
 
-  defp handle_model_catalog({:error, reason}), do: {:error, {:transport, reason}}
+  defp handle_data_list({:error, reason}), do: {:error, {:transport, reason}}
 
   defp content_type(headers) when is_map(headers) do
     case headers["content-type"] do

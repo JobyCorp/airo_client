@@ -84,7 +84,11 @@ defmodule AiroClientTest do
     test "classify/2 posts to /v1/classify" do
       Req.Test.stub(__MODULE__, fn conn ->
         assert conn.request_path == "/v1/classify"
-        Req.Test.json(conn, %{"object" => "classify", "data" => [[%{"label" => "joy", "score" => 0.9}]]})
+
+        Req.Test.json(conn, %{
+          "object" => "classify",
+          "data" => [[%{"label" => "joy", "score" => 0.9}]]
+        })
       end)
 
       assert {:ok, %{"object" => "classify"}} =
@@ -159,6 +163,34 @@ defmodule AiroClientTest do
 
       assert {:ok, catalog} = AiroClient.model_catalog(opts(__MODULE__))
       assert Enum.find(catalog, &(&1["id"] == "go-emotions"))["capabilities"] == ["classify"]
+    end
+
+    test "voices/1 returns the full voice entries" do
+      Req.Test.stub(__MODULE__, fn conn ->
+        assert conn.method == "GET" and conn.request_path == "/v1/audio/voices"
+        assert conn.query_string == ""
+
+        Req.Test.json(conn, %{
+          "object" => "list",
+          "data" => [
+            %{"id" => "af_heart", "object" => "voice", "model" => "tts", "owned_by" => "kokoro"}
+          ]
+        })
+      end)
+
+      assert {:ok, [%{"id" => "af_heart", "model" => "tts"}]} =
+               AiroClient.voices(opts(__MODULE__))
+    end
+
+    test "voices/1 forwards :model as the ?model= query param" do
+      Req.Test.stub(__MODULE__, fn conn ->
+        assert conn.request_path == "/v1/audio/voices"
+        assert conn.query_string == "model=tts"
+
+        Req.Test.json(conn, %{"object" => "list", "data" => []})
+      end)
+
+      assert {:ok, []} = AiroClient.voices(opts(__MODULE__) ++ [model: "tts"])
     end
   end
 
