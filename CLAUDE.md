@@ -5,6 +5,21 @@ library `incogito` and `orchester` use to talk to Airo instead of `openai_ex`.
 Sibling of `airo` under `~/Work/airo-workspace/` — the `../airo` relative path in
 docs resolves because they live side by side.
 
+## Prod
+
+- **This library has no deployment of its own.** It ships as a **git dep on
+  `branch: "main"`** — there is no version tag and no Hex release, so a
+  push to `main` reaches every consumer on their next `mix deps.update`.
+  Treat `main` as production.
+- Consumers today: **incogito, orchester, mem_pal, joby, media_assist**.
+  A breaking change to the public API means five apps to update — grep
+  before you rename.
+- The gateway it targets is **https://llm.local.joby.gg** (airo on VM 302 /
+  `phx2`). **`airo.local.joby.gg` is retired and dead** — the example
+  `base_url` in the config block below is illustrative, not a live host.
+- `:base_url` is the gateway **host**, never the `/v1` path; this lib owns
+  the full `/v1/...` paths.
+
 Scope: owns *everything app↔Airo*, **nothing browser-facing**. For realtime voice
 the consumer terminates the browser WebSocket itself and relays only the upstream
 leg to Airo via `AiroClient.Realtime` (the browser never reaches Airo directly).
